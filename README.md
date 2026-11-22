@@ -8,6 +8,9 @@ Custom widgets for [PhoneBox](https://github.com/ersinkoc/phonebox), plus a smal
 | **Clock** | Time, date and the tablet's battery and charging state. Drag, resize and restyle every part right on the widget, with any font installed on your PC. |
 | **Audio output** | Tiles for the speakers and headsets you choose. Tap one and Windows switches its output to it. |
 | **Media** | Now playing with big controls, a seek bar and ±5 s skip buttons. No volume slider. |
+| **Discord** | Mute, deafen and leave buttons, and a volume slider for everyone in your voice call. |
+
+Every widget's buttons make the tablet vibrate briefly when tapped, like PhoneBox's own (see **Vibration** below).
 
 ## Why there is a host
 
@@ -16,7 +19,9 @@ PhoneBox runs "Custom HTML" widgets in a sandbox. They get a few read-only value
 ```
 tablet: PhoneBox ─ Custom HTML widget ──USB (adb reverse 8766)──► PC: host/server.py ─┬─► widgets/<type>/plugin.py
                      (snippet loads /widget/<type>.js)                                 ├─► PhoneBox agent (audio, …)
-                                                                                       ├─► adb (tablet battery)
+                                                                                       ├─► adb (tablet battery, vibration)
+                                                                                       ├─► Discord app (its local RPC pipe)
+                                                                                       ├─► WebNowPlaying browser extension
                                                                                        └─► Windows (fonts, games, apps)
 ```
 
@@ -42,11 +47,15 @@ host/
   icons/         Lucide icons (SVG) bundled into every widget
   server.py      HTTP server, plugin loader, routing, security checks
   pbw.py         helpers for plugins: settings store, PhoneBox agent, adb + tablet battery, PC fonts
+  wnp.py         WebNowPlaying adapter: exact position and seeking for media in the browser (port 8767)
   sdk.js         toolkit for widgets: PBW.mount, editor building blocks, color picker, font picker, API calls
   setup.html     the setup page: widget types, ids, snippet, live preview
 widgets/
   volume/        plugin.py (PC side) + widget.js (tablet side)
   clock/
+  audio-output/
+  media/
+  discord/
   _template/     what tools/new-widget.py copies (folders starting with _ are not loaded)
 tools/new-widget.py
 install.cmd · uninstall.cmd · dev.cmd
@@ -92,6 +101,7 @@ What the SDK provides (full list at the top of `host/sdk.js`):
 - `PBW.useFont(id)`: a CSS font-family that loads one of the PC's fonts.
 - `PBW.icon(name)`, `PBW.label(name, text)`: icons (see **Icons** below).
 - `PBW.battery()`: the tablet's battery.
+- `PBW.haptic()`: a short vibration on the tablet. Buttons (and editor checkbox rows) already vibrate on touch, so this is only for your own touch elements, like a slider snapping into place.
 
 Widgets that need PhoneBox's own data can also use `window.phonebox.on('state', fn)` from PhoneBox's sandbox.
 
@@ -127,6 +137,12 @@ def setup(ctx):
 
 ## Widget details
 
+### Vibration (all widgets)
+
+- **Every button vibrates the tablet** for 40 ms when your finger touches it, like PhoneBox's own buttons. Only touches count: clicking the preview on the PC doesn't buzz the tablet.
+- **How:** the host keeps one `adb shell` open to the tablet and sends it Android's vibrate command, which takes a few milliseconds per tap. This works over USB only, like the widgets.
+- **Setup page › All widgets:** switch it on or off, pick Light (20 ms), Normal (40 ms) or Strong (70 ms), and **Test**.
+
 ### Volume
 
 - **Sliders:** each slider controls any mix of:
@@ -160,19 +176,46 @@ def setup(ctx):
 
 ### Media
 
-- **Controls:** skip back, previous, play/pause, next, skip forward. The skip amount (5, 10, 15 or 30 s) is set in the gear settings. Skipping and seeking work with players that allow it: Spotify, YouTube in the browser, most video players.
-- **Seek bar:** shows when the player reports the track's length. Drag it to pick a time; it seeks on release.
+- **Controls:** skip back, previous, play/pause, next, skip forward. The skip amount (5, 10, 15 or 30 s) is set in the gear settings. Skipping and seeking work with players that share their position with Windows: Spotify, Chrome, Edge, most video players. Firefox only does at play / pause; see **Firefox** below.
+- **Seek bar:** shows when the player reports the track's length and position. Drag it to pick a time; it seeks on release.
 - **Layout:** the cover and title are kept small so the controls get the room. Wide widgets put the controls on the right, and tall ones use two rows.
 - **Settings:** cover art, player name, seek bar, background tint (from the cover's color), button color.
 - **Source:** the same "now playing" information as PhoneBox's own widget (Windows' media session, through the PhoneBox agent).
+- **Firefox:** Firefox tells Windows the position only when playback starts or pauses. Without help, the widget counts on from there, and after you jump in the video in the browser it hides the seek bar and turns the skips off until the next play / pause. For exact positions and skips, install the [WebNowPlaying](https://addons.mozilla.org/firefox/addon/webnowplaying/) extension. In its settings, **Add custom adapter** with port **8767** and reload the tab. The host (`host/wnp.py`) then gets the position straight from the page and skips through the extension. It also works in Chrome.
+
+### Discord
+
+- **Your controls** (bottom row): **Mute**, **Deafen** and **Leave**. Leave asks for a second tap by default (⚙ › Tap Leave twice).
+- **Call members:** each person gets an avatar (with a green ring while they talk), a volume slider from 0 to 200 % that snaps to 100 % with a buzz, and a button that mutes them for you. These are the same as Discord's own user volume and mute: they only change what **you** hear.
+- **Layouts:** **Rows** (one person per line), **Columns** (side by side, with vertical faders) or **Tiles** (a card per person; tiles grow to fill the widget, so one other person fills all of it). A single entry sits in the middle. Widgets too short for the members show just the three buttons, bigger.
+- **Settings:** which buttons to show, whether to list members (and yourself), the volume range (100 % or 200 %), the slider color and a title (default: the channel's name).
+
+**Setup (once):** Discord only lets apps it knows control voice settings, so the widget uses your own Discord application:
+
+1. Open <https://discord.com/developers/applications>, click **New Application** and give it any name (Discord shows it when asking for permission).
+2. On **General Information**, copy the **Application ID** (the Client ID).
+3. On **OAuth2**, click **Reset Secret** and copy the **Client Secret** (it's only shown once). Under **Redirects**, add `http://localhost` and save.
+4. On the widget (easier on the setup page on the PC): ⚙ › Discord app › **Set up**. Paste both values and click **Connect**.
+5. Discord asks whether to authorize the app. Click **Authorize**. The host remembers the login, so this happens only once.
+
+How it works: the host talks to the Discord app on the same PC through Discord's local RPC pipe (`\\.\pipe\discord-ipc-0`), the same way stream-deck plugins do. Nothing goes through a server except the one-time login (Discord's OAuth token endpoint). If Discord isn't running, the widget says so and reconnects by itself when it starts.
+
+Not possible through Discord's RPC: answering or declining incoming calls (Discord doesn't report them to apps) and playing your own sounds into a call.
 
 ## Troubleshooting
 
 - **"Widget host offline – retrying…" on the tablet:** check that <http://127.0.0.1:8766/> opens on the PC. If not, run `install.cmd`. If it opens, check that `adb reverse --list` shows `tcp:8766 tcp:8766` (the host re-adds it every 10 s).
 - **A widget shows an error, or nothing:** run `dev.cmd` and watch the console. The log is in `%APPDATA%\PhoneBoxWidgets\host.log`.
-- **Wi-Fi mode:** not supported, because over Wi-Fi the sandboxed widget can't reach the PC.
+- **A change doesn't show on the tablet** (new SDK features like vibration, a new widget version): PhoneBox keeps a widget's code until it reloads it. Switch to another PhoneBox page and back.
+- **Discord widget stays on "Connecting…" or "Discord didn't answer"** although Discord is open: the widget retries every 5 s by itself. Discord can stop answering for a while, for example while one of its Authorize windows is open. If it doesn't recover, restart Discord.
+- **Discord widget: authorization failed or was declined:** ⚙ › Discord app › **Connect** asks again. **Forget this app** removes the Client ID, secret and login from this PC.
+- **Media: wrong position or no skips with Firefox:** see **Firefox** in the Media section (WebNowPlaying).
+- **Wi-Fi mode:** not supported. The snippet loads the widget from `127.0.0.1`, which on the tablet is the tablet itself. Over USB, `adb reverse` forwards that to the PC. Over Wi-Fi there's no such route, and opening the host to the network would let anyone on it control your PC's audio and Discord.
 - **Migration:** the earlier Volume Slider snippet (`/widget.js`, `id="vs"`) keeps working. Its settings were imported from `%APPDATA%\PhoneBoxVolumeSlider\`, which is left in place as a backup.
 
 ## Security
 
 The host listens on `127.0.0.1` only. It answers requests whose `Host` is `127.0.0.1:8766` or `localhost:8766` and whose `Origin` is missing, `null` (sandboxed widgets) or the setup page. Pages from other websites get 403. Fonts are served read-only from the Windows font list.
+
+- **Discord:** the Client Secret and the login tokens are stored in `%APPDATA%\PhoneBoxWidgets\config.json`, encrypted with Windows DPAPI, so only your Windows account can read them. The host never sends them to widgets, and they're never in this repository. To revoke the widget's access, remove the app in Discord under *Settings › Authorized Apps*.
+- **WebNowPlaying (port 8767):** only accepts WebSocket connections from browser extensions (`moz-extension://` or `chrome-extension://` origins). A web page that tries to connect gets 403, so it can't feed the Media widget fake players.

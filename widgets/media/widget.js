@@ -23,8 +23,6 @@ PBW.mount('media', async (ctx) => {
 .md-prog{display:flex;align-items:center;gap:8px;font-size:.82em;color:var(--dim);font-variant-numeric:tabular-nums}
 .md-prog[hidden]{display:none}
 .md-bar{position:relative;flex:1;height:18px;touch-action:none;cursor:pointer}
-.md-prog.nolen .md-bar{cursor:default;opacity:.55}
-.md-prog.nolen .md-knob{display:none}
 .md-bar::before{content:'';position:absolute;left:0;right:0;top:7px;height:4px;border-radius:2px;background:rgba(255,255,255,.12)}
 .md-fill{position:absolute;left:0;top:7px;height:4px;border-radius:2px;background:var(--btn)}
 .md-knob{position:absolute;top:3px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--btn);opacity:0;transition:opacity .15s}
@@ -82,7 +80,6 @@ PBW.mount('media', async (ctx) => {
     root.classList.toggle('no-art', !cfg.art);
     root.classList.toggle('no-app', !cfg.app);
     back.querySelector('b').textContent = fwd.querySelector('b').textContent = String(cfg.skip);
-    back.title = `Back ${cfg.skip} s`; fwd.title = `Forward ${cfg.skip} s`;
     if (!cfg.tint) root.style.background = '';
     size();
     draw();
@@ -115,12 +112,15 @@ PBW.mount('media', async (ctx) => {
     artist.textContent = has ? [m.artist, m.album].filter(Boolean).join(' · ') : '';
     app.textContent = has && m.title ? m.app : '';
     play.replaceChildren(icon(m && m.playing ? 'pause' : 'play'));
-    const seekable = !!(m && m.canSeek);
+    // Without a track length (Firefox) the player doesn't share its position either: the time would be a guess that
+    // resets whenever you jump in the video, and skipping from it lands at the start. So: no bar, no skips.
+    const timed = !!(m && m.durMs > 0);
+    const seekable = !!(m && m.canSeek) && timed;
     back.disabled = fwd.disabled = !seekable;
+    const why = has && !timed ? ' (this player doesn’t share its position with Windows)' : '';
+    back.title = `Back ${cfg.skip} s${why}`; fwd.title = `Forward ${cfg.skip} s${why}`;
     prev.disabled = next.disabled = !has;
-    prog.hidden = !cfg.progress || !has;
-    prog.classList.toggle('nolen', !(m && m.durMs > 0));
-    prog.title = m && m.durMs > 0 ? '' : 'This player does not tell Windows the track length (Firefox, for example): elapsed time only, no seeking';
+    prog.hidden = !cfg.progress || !has || !timed;
     // the cover: a new artId means a new picture
     const want = has && m.artId ? m.artId : null;
     if (want !== artId) {
@@ -136,15 +136,10 @@ PBW.mount('media', async (ctx) => {
   function paintPos() {
     if (!m || prog.hidden) return;
     const p = scrub ? scrub.ms : nowPos();
-    if (m.durMs > 0) {
-      const f = clamp(p / m.durMs, 0, 1) * 100;
-      fill.style.width = f + '%';
-      knob.style.left = f + '%';
-      dur.textContent = fmt(m.durMs);
-    } else { // length unknown (Firefox): just the elapsed time; an empty, dimmed bar
-      fill.style.width = '0%';
-      dur.textContent = '--:--';
-    }
+    const f = clamp(p / m.durMs, 0, 1) * 100;
+    fill.style.width = f + '%';
+    knob.style.left = f + '%';
+    dur.textContent = fmt(m.durMs);
     pos.textContent = fmt(p);
   }
 
@@ -226,11 +221,11 @@ PBW.mount('media', async (ctx) => {
     })],
     ui.section('Skip buttons'),
     ui.segmented([[5, '5 s'], [10, '10 s'], [15, '15 s'], [30, '30 s']], d.skip, (v) => { d.skip = v; }),
-    ui.hint('Works with players that allow seeking (Spotify, YouTube in the browser, most video players).'),
+    ui.hint('Works with players that share their position with Windows: Spotify, Chrome, Edge, most video players. Not Firefox: it only reports play / pause.'),
     ui.section('Show'),
     ui.check('Cover art', null, d.art, (v) => { d.art = v; }),
     ui.check('Player name', 'e.g. Spotify, Firefox', d.app, (v) => { d.app = v; }),
-    ui.check('Progress bar', 'Seekable when the player reports the track length (Spotify, Chrome, Edge…); Firefox only shares the elapsed time', d.progress, (v) => { d.progress = v; }),
+    ui.check('Progress bar', 'With seeking, for players that share their position (Spotify, Chrome, Edge…). Hidden for Firefox, which doesn’t', d.progress, (v) => { d.progress = v; }),
     ui.check('Background tint', 'A soft glow in the cover’s color', d.tint, (v) => { d.tint = v; }),
     ui.section('Button color'),
     ui.colorPicker(d.color, (c) => { d.color = c; }, ['#eef2f6', '#2dd4bf', '#60a5fa', '#a78bfa', '#f472b6', '#fb923c', '#facc15', '#4ade80']));
