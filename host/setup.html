@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PhoneBox Widgets</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0f14; --card:#141a22; --line:rgba(255,255,255,.08); --fg:#eef2f6; --dim:#8a94a3; --acc:#2dd4bf; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 "Segoe UI",system-ui,sans-serif; }
+  main { max-width:1180px; margin:0 auto; padding:24px 16px 48px; display:grid; gap:20px; grid-template-columns:360px 1fr; }
+  @media (max-width:860px) { main { grid-template-columns:1fr; } }
+  h1 { font-size:20px; margin:0; grid-column:1/-1; }
+  .sub { color:var(--dim); grid-column:1/-1; margin:-14px 0 0; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  h2 { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); margin:4px 0 0; font-weight:600; }
+  select, input, textarea, button { font:inherit; color:inherit; }
+  select { background:#0f141b; border:1px solid var(--line); border-radius:9px; padding:8px 10px; min-width:0; }
+  textarea { width:100%; height:150px; background:#0f141b; border:1px solid var(--line); border-radius:9px; padding:10px; font:12px/1.45 Consolas,monospace; color:#cbd5e1; resize:vertical; }
+  button { background:#232c38; border:0; border-radius:9px; padding:8px 12px; cursor:pointer; }
+  button.pri { background:var(--acc); color:#06201c; font-weight:600; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .types { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
+  .type { text-align:left; padding:10px; border-radius:11px; background:#0f141b; border:1px solid var(--line); }
+  .type.on { border-color:var(--acc); background:rgba(45,212,191,.08); }
+  .type b { display:flex; align-items:center; gap:7px; }
+  .ic svg { width:18px; height:18px; display:block; }
+  h1 { display:flex; align-items:center; gap:10px; }
+  h1 .ic svg { width:22px; height:22px; color:var(--acc); }
+  .type span { color:var(--dim); font-size:12px; }
+  .sizes button.on { outline:2px solid var(--acc); }
+  .stage { display:grid; place-items:center; min-height:480px; background:radial-gradient(circle at 50% 30%, #1b2330, #0d1218 70%); border-radius:14px; border:1px solid var(--line); padding:20px; overflow:auto; }
+  .card { width:264px; height:174px; background:#151b23; border-radius:16px; resize:both; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,.4); min-width:66px; min-height:58px; }
+  ol { margin:0; padding-left:20px; color:#cbd5e1; } li { margin:3px 0; }
+  code { background:#0f141b; padding:1px 5px; border-radius:5px; font-size:12px; }
+  .hint { color:var(--dim); font-size:12.5px; margin:0; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span class="ic" data-icon="puzzle"></span>PhoneBox Widgets</h1>
+  <p class="sub">Set up your widgets here (bigger screen) or with the gear button on the tablet. Both edit the same settings.</p>
+
+  <section>
+    <h2>Widget type</h2>
+    <div class="types" id="types"></div>
+
+    <h2>Widget</h2>
+    <div class="row">
+      <select id="pick"></select>
+      <button id="new">New…</button>
+      <button id="del" title="Delete this widget's settings">Delete</button>
+    </div>
+    <p class="hint">Each widget id keeps its own settings, e.g. a <code>desk</code> clock and a <code>bedside</code> clock.</p>
+
+    <h2>Add to PhoneBox</h2>
+    <ol>
+      <li>PhoneBox settings › your page › <b>Add widget</b> › <b>Custom HTML</b>.</li>
+      <li>Replace its HTML with this snippet, tick <b>No card background</b> if you like, save.</li>
+    </ol>
+    <textarea id="snippet" readonly></textarea>
+    <div class="row"><button class="pri" id="copy">Copy snippet</button><span id="copied" class="hint"></span></div>
+
+    <h2>Preview size</h2>
+    <div class="row sizes" id="sizes"></div>
+    <p class="hint">PhoneBox grid cells, roughly. Drag the preview's corner for other sizes.</p>
+  </section>
+
+  <section>
+    <h2>Live widget</h2>
+    <div class="stage"><div class="card" id="card"><div id="pbw" style="height:100%"></div></div></div>
+  </section>
+</main>
+<script>
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const clean = (s) => (s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
+  const go = (type, id) => { location.search = '?' + new URLSearchParams({ type, ...(id ? { id } : {}) }); };
+  const [{ types }, { icons }] = await Promise.all([fetch('/api/types').then((r) => r.json()), fetch('/api/icons').then((r) => r.json())]);
+  // Lucide icons, the same set the widgets and PhoneBox use
+  const svg = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[name] || icons.puzzle}</svg>`;
+  document.querySelectorAll('[data-icon]').forEach((e) => { e.innerHTML = svg(e.dataset.icon); });
+  const type = types.some((t) => t.type === params.get('type')) ? params.get('type') : types[0]?.type;
+  if (!type) { document.getElementById('types').textContent = 'No widgets found in the widgets folder.'; return; }
+  const meta = types.find((t) => t.type === type);
+  const { instances } = await fetch(`/api/w/${type}/instances`).then((r) => r.json());
+  const id = clean(params.get('id')) || instances[0] || 'main';
+
+  // type cards
+  const box = document.getElementById('types');
+  for (const t of types) {
+    const b = document.createElement('button');
+    b.className = 'type' + (t.type === type ? ' on' : '');
+    b.innerHTML = `<b><span class="ic">${svg(t.icon)}</span><i></i></b><span></span>`;
+    b.querySelector('b i').textContent = t.name;
+    b.querySelector('b i').style.fontStyle = 'normal';
+    b.querySelector('span').textContent = t.description;
+    b.onclick = () => go(t.type);
+    box.append(b);
+  }
+
+  // instances
+  const pick = document.getElementById('pick');
+  const fillPick = (list) => {
+    pick.replaceChildren();
+    for (const i of new Set([...list, id])) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = list.includes(i) ? i : i + ' (not saved yet)'; o.selected = i === id;
+      pick.append(o);
+    }
+  };
+  fillPick(instances);
+  setInterval(() => fetch(`/api/w/${type}/instances`).then((r) => r.json()).then((r) => fillPick(r.instances)), 5000);
+  pick.onchange = () => go(type, pick.value);
+  document.getElementById('new').onclick = () => { const n = clean(prompt('Widget id (letters, digits, - or _):', type === 'clock' ? 'desk' : 'main')); if (n) go(type, n); };
+  document.getElementById('del').onclick = async () => {
+    if (!confirm(`Delete the settings of ${meta.name} widget “${id}”?`)) return;
+    const r = await fetch(`/api/w/${type}/delete?id=${encodeURIComponent(id)}`, { method: 'POST' }).then((x) => x.json());
+    go(type, r.instances[0]);
+  };
+
+  // snippet
+  const port = location.port || 8766;
+  const snippet = `<div id="pbw" data-id="${id}" style="height:100%"></div>
+<script>
+(function load(){var s=document.createElement('script');s.src='http://127.0.0.1:${port}/widget/${type}.js?t='+Date.now();
+s.onerror=function(){s.remove();document.getElementById('pbw').innerHTML='<div style="height:100%;display:grid;place-items:center;text-align:center;color:#8a94a3;font:12px sans-serif">Widget host offline<br>retrying…</div>';setTimeout(load,4000)};
+document.head.appendChild(s)})();
+<\/script>`;
+  document.getElementById('snippet').value = snippet;
+  document.getElementById('copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(snippet); } catch (_) { const t = document.getElementById('snippet'); t.select(); document.execCommand('copy'); }
+    document.getElementById('copied').textContent = 'Copied ✓';
+  };
+
+  // preview sizes: 12 × 6 grid on a landscape tablet, about 66 × 58 CSS px per cell
+  const card = document.getElementById('card');
+  const sizeBox = document.getElementById('sizes');
+  const sizes = [[2, 2], [3, 2], [4, 3], [6, 4], [6, 6], [12, 3]];
+  const def = meta.size || [4, 3];
+  if (!sizes.some(([w, h]) => w === def[0] && h === def[1])) sizes.unshift(def);
+  const setSize = (w, h, b) => { card.style.width = w * 66 + 'px'; card.style.height = h * 58 + 'px'; sizeBox.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); };
+  for (const [w, h] of sizes) {
+    const b = document.createElement('button');
+    b.textContent = `${w}×${h}`;
+    b.onclick = () => setSize(w, h, b);
+    sizeBox.append(b);
+    if (w === def[0] && h === def[1]) setSize(w, h, b);
+  }
+
+  // the widget itself, exactly as PhoneBox loads it
+  document.getElementById('pbw').dataset.id = id;
+  const s = document.createElement('script');
+  s.src = `/widget/${type}.js?t=${Date.now()}`;
+  document.body.append(s);
+})();
+</script>
+</body>
+</html>
