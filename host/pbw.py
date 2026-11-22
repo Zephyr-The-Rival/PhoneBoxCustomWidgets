@@ -241,6 +241,92 @@ class Phone:
 PHONE = Phone()
 
 
+# ------------------------------------------------------------------------------------------------ haptics
+HAPTIC_DEFAULTS = {"haptics": True, "hapticMs": 40}  # 40 ms: what PhoneBox's own buttons use
+
+
+def host_settings() -> dict:
+    with STORE.lock:
+        s = STORE.data.get("host") or {}
+    return {"haptics": bool(s.get("haptics", HAPTIC_DEFAULTS["haptics"])),
+            "hapticMs": max(10, min(150, int(s.get("hapticMs", HAPTIC_DEFAULTS["hapticMs"]))))}
+
+
+def save_host_settings(new: dict) -> dict:
+    cur = host_settings()
+    if "haptics" in new:
+        cur["haptics"] = bool(new["haptics"])
+    if isinstance(new.get("hapticMs"), (int, float)):
+        cur["hapticMs"] = max(10, min(150, int(new["hapticMs"])))
+    with STORE.lock:
+        STORE.data["host"] = {**(STORE.data.get("host") or {}), **cur}
+    STORE.save_now()
+    return cur
+
+
+class Haptics:
+    """A short buzz on the tablet when a widget button is tapped. Starting adb for every tap takes ~150 ms, so this
+    keeps one `adb shell` open and writes the vibrate command into it (a few ms)."""
+
+    def __init__(self):
+        self.proc = None
+        self.serial = None
+        self.cmd = ""
+        self.last = 0.0
+        self.lock = threading.Lock()
+
+    def _shell(self):
+        serial = (PHONE.serials or PHONE.refresh_devices() or [None])[0]
+        adb = find_adb()
+        if not serial or not adb:
+            return None
+        if self.proc and self.proc.poll() is None and self.serial == serial:
+            return self.proc
+        self.close()
+        sdk = (PHONE.adb("shell", "getprop", "ro.build.version.sdk", serial=serial) or "").strip()
+        # Android 12+ replaced "cmd vibrator" with "cmd vibrator_manager"
+        self.cmd = ("cmd vibrator_manager synced -f oneshot {ms}" if sdk.isdigit() and int(sdk) >= 31
+                    else "cmd vibrator vibrate -f {ms} phonebox-widgets")
+        self.proc = subprocess.Popen([adb, "-s", serial, "shell"], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL, creationflags=NO_WINDOW)
+        self.serial = serial
+        log.info("%s: haptics ready (Android SDK %s)", serial, sdk or "?")
+        return self.proc
+
+    def buzz(self, ms=None, force=False) -> bool:
+        """force: buzz even when haptics are switched off (the setup page's Test button)."""
+        s = host_settings()
+        if not s["haptics"] and not force:
+            return False
+        ms = max(10, min(150, int(ms or s["hapticMs"])))
+        with self.lock:
+            if time.time() - self.last < 0.04:  # a double event from one tap
+                return True
+            for _ in range(2):  # a dead shell (tablet replugged): open a new one once
+                p = self._shell()
+                if not p:
+                    return False
+                try:
+                    p.stdin.write((self.cmd.format(ms=ms) + " >/dev/null 2>&1\n").encode("ascii"))
+                    p.stdin.flush()
+                    self.last = time.time()
+                    return True
+                except OSError:
+                    self.close()
+        return False
+
+    def close(self):
+        p, self.proc = self.proc, None
+        if p:
+            try:
+                p.kill()
+            except OSError:
+                pass
+
+
+HAPTICS = Haptics()
+
+
 # ------------------------------------------------------------------------------------------------ PC fonts
 class Fonts:
     """The PC's installed fonts (TTF / OTF), so widgets can use any of them without internet on the tablet."""

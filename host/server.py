@@ -221,6 +221,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {"types": [w.describe() for w in WIDGETS.values()]})
         if method == "GET" and path == "/api/phone/battery":
             return self.reply(200, pbw.PHONE.battery() or {"available": False})
+        if method == "POST" and path == "/api/haptic":  # a widget button was tapped: buzz the tablet
+            ms = req.query.get("ms")  # only the setup page's Test sends ms (buzzes even when switched off)
+            return self.reply(200, {"ok": pbw.HAPTICS.buzz(int(ms), force=True) if ms and ms.isdigit() else pbw.HAPTICS.buzz()})
+        if method == "GET" and path == "/api/host-settings":
+            return self.reply(200, pbw.host_settings())
+        if method == "POST" and path == "/api/host-settings":
+            return self.reply(200, pbw.save_host_settings(req.json({}) or {}))
         if method == "GET" and path == "/api/fonts":
             return self.reply(200, {"fonts": pbw.FONTS.list()})
         m = re.fullmatch(r"/fonts/([a-z0-9_.-]+)", path)

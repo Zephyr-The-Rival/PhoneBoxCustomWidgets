@@ -31,7 +31,9 @@ PBW.mount('volume', (ctx) => {
 .vs-title{flex:1;min-width:0;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vs-off{display:none;font-size:10px;color:#f87171}.vs.offline .vs-off{display:inline}
 .vs.offline .vs-list{opacity:.35;pointer-events:none}
-.vs-gear{width:22px;height:18px;display:grid;place-items:center;opacity:.45;font-size:13px;border-radius:5px}
+.vs-gear{width:24px;height:22px;margin:-2px -5px -2px 0;display:grid;place-items:center;opacity:.45;font-size:14px;border-radius:6px;flex:none;
+  -webkit-text-size-adjust:100%;text-size-adjust:100%}
+.vs .vs-gear .ico{width:14px;height:14px}
 .vs-gear:active{background:var(--track);opacity:1}
 .vs-list{flex:1;min-height:0;display:flex;gap:8px}
 .vs-v .vs-list{flex-direction:row;overflow-x:auto;overflow-y:hidden}

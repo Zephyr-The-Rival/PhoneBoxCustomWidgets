@@ -64,6 +64,16 @@
     <h2>Preview size</h2>
     <div class="row sizes" id="sizes"></div>
     <p class="hint">PhoneBox grid cells, roughly. Drag the preview's corner for other sizes.</p>
+
+    <h2>All widgets</h2>
+    <div class="row">
+      <label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" id="hap"> Vibrate on button taps</label>
+      <select id="hapMs">
+        <option value="20">Light</option><option value="40">Normal</option><option value="70">Strong</option>
+      </select>
+      <button id="hapTest">Test</button>
+    </div>
+    <p class="hint">The tablet buzzes over USB (adb) when you tap a widget button, like PhoneBox's own buttons.</p>
   </section>
 
   <section>
@@ -147,6 +157,17 @@ document.head.appendChild(s)})();
     sizeBox.append(b);
     if (w === def[0] && h === def[1]) setSize(w, h, b);
   }
+
+  // host-wide settings: haptics
+  const hap = document.getElementById('hap'), hapMs = document.getElementById('hapMs');
+  const hs = await fetch('/api/host-settings').then((r) => r.json());
+  hap.checked = hs.haptics;
+  if (![...hapMs.options].some((o) => +o.value === hs.hapticMs)) hapMs.append(new Option(hs.hapticMs + ' ms', hs.hapticMs));
+  hapMs.value = hs.hapticMs;
+  const saveHost = () => fetch('/api/host-settings', { method: 'POST', body: JSON.stringify({ haptics: hap.checked, hapticMs: +hapMs.value }) });
+  hap.onchange = saveHost;
+  hapMs.onchange = async () => { await saveHost(); fetch(`/api/haptic?ms=${hapMs.value}`, { method: 'POST' }); };
+  document.getElementById('hapTest').onclick = () => fetch(`/api/haptic?ms=${hapMs.value}`, { method: 'POST' });
 
   // the widget itself, exactly as PhoneBox loads it
   document.getElementById('pbw').dataset.id = id;

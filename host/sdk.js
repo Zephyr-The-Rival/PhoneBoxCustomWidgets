@@ -17,6 +17,8 @@
 //                                             input, colorPicker, fontPicker
 //   PBW.fonts(), PBW.useFont(id)               the PC's fonts: list them / get a CSS font-family that loads one
 //   PBW.battery()                              the tablet's battery {level, charging, status, plugged}
+//   PBW.haptic()                               a short buzz on the tablet (buttons, .ed-row.check and [data-haptic]
+//                                             elements already buzz when touched; this is for anything else)
 (() => {
   'use strict';
   if (window.PBW) return;
@@ -74,8 +76,11 @@
 .pbw button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 .pbw .ico{width:1em;height:1em;vertical-align:-.15em;flex:none}
 .pbw .ico.m{margin-right:.4em}
-.pbw-gear{position:absolute;top:3px;right:3px;z-index:4;width:24px;height:22px;display:grid;place-items:center;opacity:.45;font-size:14px;border-radius:6px}
+.pbw-gear{position:absolute;top:3px;right:3px;z-index:4;width:24px;height:22px;display:grid;place-items:center;opacity:.45;font-size:14px;border-radius:6px;
+  -webkit-text-size-adjust:100%;text-size-adjust:100%}
 .pbw-gear:active{background:var(--track);opacity:1}
+/* fixed pixels, not em: the gear looks the same in every widget and size (Android's text autosizing can't grow it) */
+.pbw .pbw-gear .ico{width:14px;height:14px}
 .pbw-toast{position:absolute;left:8px;right:8px;bottom:8px;z-index:20;color:#fecaca;background:#7f1d1d;border-radius:8px;font-size:11px;text-align:center;padding:6px}
 .pbw-fail{height:100%;display:grid;place-items:center;text-align:center;color:#f87171;padding:8px;font-size:11px}
 
@@ -274,6 +279,14 @@
     return h('div', 'ed-col', search, list);
   };
 
+  // ------------------------------------------------------------------ haptics: the host buzzes the tablet over adb
+  let lastBuzz = 0;
+  const haptic = () => {
+    if (Date.now() - lastBuzz < 60) return;
+    lastBuzz = Date.now();
+    post('/api/haptic').catch(() => {});
+  };
+
   // ------------------------------------------------------------------ mount
   function mount(type, setup) {
     const root = document.getElementById('pbw') || document.getElementById('vs') || document.body.appendChild(h('div'));
@@ -301,6 +314,11 @@
       editor: makeEditor(root),
       gear: (onClick) => btn('pbw-gear', icon('settings'), onClick, 'Settings'),
     };
+    // a short buzz on the tablet for every button (and editor row) touched, in every widget. Touch only: clicking
+    // the preview on the PC's setup page doesn't buzz the tablet.
+    root.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' && e.target.closest?.('button:not(:disabled), .ed-row.check, [data-haptic]')) haptic();
+    }, { capture: true, passive: true });
     try {
       const r = setup(ctx);
       if (r && r.catch) r.catch((e) => { console.error(e); ctx.error(e); });
@@ -314,5 +332,6 @@
   window.PBW = {
     BASE, COLORS, h, btn, clamp, q, api, post, css, ui, fonts, useFont, mount, icon, label, ICON_NAMES: Object.keys(ICONS),
     battery: () => api('/api/phone/battery'),
+    haptic,
   };
 })();
