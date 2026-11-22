@@ -9,6 +9,7 @@ Custom widgets for [PhoneBox](https://github.com/ersinkoc/phonebox), plus a smal
 | **Audio output** | Tiles for the speakers and headsets you choose. Tap one and Windows switches its output to it. |
 | **Media** | Now playing with big controls, a seek bar and ±5 s skip buttons. No volume slider. |
 | **Discord** | Mute, deafen and leave buttons, and a volume slider for everyone in your voice call. |
+| **Clipboard** | Your clipboard history (Win+V). Tap an entry and it's pasted into the active window on the PC. |
 
 Every widget's buttons make the tablet vibrate briefly when tapped, like PhoneBox's own (see **Vibration** below).
 
@@ -56,6 +57,7 @@ widgets/
   audio-output/
   media/
   discord/
+  clipboard/     plugin.py + widget.js + helper.ps1 (Windows' clipboard history API, through PowerShell)
   _template/     what tools/new-widget.py copies (folders starting with _ are not loaded)
 tools/new-widget.py
 install.cmd · uninstall.cmd · dev.cmd
@@ -201,6 +203,16 @@ def setup(ctx):
 How it works: the host talks to the Discord app on the same PC through Discord's local RPC pipe (`\\.\pipe\discord-ipc-0`), the same way stream-deck plugins do. Nothing goes through a server except the one-time login (Discord's OAuth token endpoint). If Discord isn't running, the widget says so and reconnects by itself when it starts.
 
 Not possible through Discord's RPC: answering or declining incoming calls (Discord doesn't report them to apps) and playing your own sounds into a call.
+
+### Clipboard
+
+- **The list** is Windows' clipboard history, the same as Win+V: newest first, up to 25 entries, text shown as you copied it (1–4 lines per entry, ⚙). Copied images (screenshots, "Copy image") show as a preview.
+- **Copied files** show up too, with Explorer's thumbnails: the picture for images, a frame for videos, the first page for PDFs, the icon for anything else. Win+V doesn't keep files, so the host watches the clipboard and remembers your last 25 file copies itself. It stores only the paths (in `%APPDATA%\PhoneBoxWidgets\config.json`), never the files. Tapping one puts the same files on the clipboard again, always as a copy (even if you originally cut them), and pastes them: into an Explorer window, that copies the files; into a chat, it attaches them. Files that were moved or deleted since show as "no longer there".
+- **Tap an entry:** it becomes the current clipboard content (like picking it in Win+V, so it also moves to the top), and the host presses **Ctrl+V** on the PC. It's pasted into whatever window is active there. A green "Pasted" and a buzz confirm it.
+- **Hold an entry for half a second** to only copy it (no Ctrl+V). A fill runs across the card while you hold; "Copied" and a buzz confirm it.
+- **Needs clipboard history switched on** (Windows Settings › System › Clipboard). If it's off, the widget says so and has a button that opens that page.
+- **Limits:** Windows doesn't let normal programs type into windows running as administrator, so pasting there doesn't work. Password managers keep passwords out of the history, so they never show up.
+- **How:** reading the history and picking an entry are Windows Runtime APIs, which Python's standard library can't call. The host keeps one small hidden PowerShell process running (`widgets/clipboard/helper.ps1`) and asks it. Clipboard text is never logged or saved by the host. It only goes to the widget. Thumbnails are kept in memory only.
 
 ## Troubleshooting
 
