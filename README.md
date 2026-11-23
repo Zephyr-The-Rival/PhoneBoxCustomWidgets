@@ -103,7 +103,7 @@ What the SDK provides (full list at the top of `host/sdk.js`):
 - `PBW.useFont(id)`: a CSS font-family that loads one of the PC's fonts.
 - `PBW.icon(name)`, `PBW.label(name, text)`: icons (see **Icons** below).
 - `PBW.battery()`: the tablet's battery.
-- `PBW.haptic()`: a short vibration on the tablet. Buttons (and editor checkbox rows) already vibrate on touch, so this is only for your own touch elements, like a slider snapping into place.
+- `PBW.haptic()`: a short vibration on the tablet. Buttons, editor checkbox rows, `<input type=range>` and any element with a `data-haptic` attribute (e.g. a custom slider track) already vibrate on touch, so this is only for other moments, like a slider snapping into place.
 
 Widgets that need PhoneBox's own data can also use `window.phonebox.on('state', fn)` from PhoneBox's sandbox.
 
@@ -141,7 +141,7 @@ def setup(ctx):
 
 ### Vibration (all widgets)
 
-- **Every button vibrates the tablet** for 40 ms when your finger touches it, like PhoneBox's own buttons. Only touches count: clicking the preview on the PC doesn't buzz the tablet.
+- **Every button vibrates the tablet** for 40 ms when your finger touches it, like PhoneBox's own buttons. **Sliders** buzz when you start dragging them (Volume faders, Discord member volumes, the Media seek bar, sliders in the ⚙ editors). Only touches count: clicking the preview on the PC doesn't buzz the tablet.
 - **How:** the host keeps one `adb shell` open to the tablet and sends it Android's vibrate command, which takes a few milliseconds per tap. This works over USB only, like the widgets.
 - **Setup page › All widgets:** switch it on or off, pick Light (20 ms), Normal (40 ms) or Strong (70 ms), and **Test**.
 

@@ -17,8 +17,8 @@
 //                                             input, colorPicker, fontPicker
 //   PBW.fonts(), PBW.useFont(id)               the PC's fonts: list them / get a CSS font-family that loads one
 //   PBW.battery()                              the tablet's battery {level, charging, status, plugged}
-//   PBW.haptic()                               a short buzz on the tablet (buttons, .ed-row.check and [data-haptic]
-//                                             elements already buzz when touched; this is for anything else)
+//   PBW.haptic()                               a short buzz on the tablet (buttons, .ed-row.check, input ranges and
+//                                             [data-haptic] elements, e.g. slider tracks, already buzz when touched)
 (() => {
   'use strict';
   if (window.PBW) return;
@@ -317,7 +317,8 @@
     // a short buzz on the tablet for every button (and editor row) touched, in every widget. Touch only: clicking
     // the preview on the PC's setup page doesn't buzz the tablet.
     root.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'mouse' && e.target.closest?.('button:not(:disabled), .ed-row.check, [data-haptic]')) haptic();
+      // sliders (input ranges, and custom tracks marked data-haptic) buzz when a drag starts, i.e. on touch
+      if (e.pointerType !== 'mouse' && e.target.closest?.('button:not(:disabled), .ed-row.check, input[type=range]:not(:disabled), [data-haptic]')) haptic();
     }, { capture: true, passive: true });
     try {
       const r = setup(ctx);

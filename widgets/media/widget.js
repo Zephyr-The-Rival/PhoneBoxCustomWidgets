@@ -121,6 +121,7 @@ PBW.mount('media', async (ctx) => {
     back.title = `Back ${cfg.skip} s${why}`; fwd.title = `Forward ${cfg.skip} s${why}`;
     prev.disabled = next.disabled = !has;
     prog.hidden = !cfg.progress || !has || !timed;
+    bar.toggleAttribute('data-haptic', seekable); // buzzes when a drag starts, only while seeking is possible
     // the cover: a new artId means a new picture
     const want = has && m.artId ? m.artId : null;
     if (want !== artId) {

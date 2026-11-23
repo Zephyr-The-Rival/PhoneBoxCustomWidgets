@@ -113,6 +113,7 @@ PBW.mount('volume', (ctx) => {
     const pct = h('div', 'ch-pct');
     const fill = h('div', 'ch-fill'), knob = h('div', 'ch-knob');
     const track = h('div', 'ch-track', fill, knob);
+    track.dataset.haptic = ''; // buzzes when a drag starts (the SDK's touch listener)
     const meter = h('div', 'ch-meter', h('div', 'ch-lvl'), h('div', 'ch-hold'));
     const ico = h('span', 'ch-ico'), label = h('span', 'ch-label'), sub = h('div', 'ch-sub');
     const name = h('div', 'ch-name', h('div', 'ch-row', h('span', 'ch-dot'), ico, label), sub);

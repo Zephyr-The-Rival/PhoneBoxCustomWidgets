@@ -148,6 +148,7 @@ PBW.mount('discord', async (ctx) => {
   function makeRow(id) {
     const av = h('div', 'dc-av'), name = h('span', 'dc-name'), you = h('span', 'dc-you', '(you)'), flags = h('span', 'dc-flags');
     const fill = h('div', 'dc-fill'), mark = h('div', 'dc-mark'), track = h('div', 'dc-track', mark, fill, h('div', 'dc-knob'));
+    track.dataset.haptic = ''; // buzzes when a drag starts (the SDK's touch listener)
     const pct = h('span', 'dc-pct');
     const r = { id, m: null, local: null, holdUntil: 0, drag: false, lastSend: 0, timer: 0, avKey: null, flagKey: null };
     const mb = btn('dc-mb', PBW.icon('volume-2'), () => muteUser(r), 'Mute for me');
