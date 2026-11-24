@@ -31,7 +31,7 @@ The snippet you paste into PhoneBox stays tiny. It loads the widget's code from 
 ## Install
 
 1. Requirements: Windows, Python 3 (python.org), and PhoneBox connected **over USB**.
-2. Double-click **`install.cmd`**. It starts the host now and on every sign-in (Startup-folder shortcut, no window), then opens the setup page.
+2. Double-click **`install.cmd`**. It starts the host now and on every sign-in (Startup-folder shortcut, no window), then opens the setup page. In the startup list and in Task Manager, the host shows as **PhoneBox Widgets** with its own icon: `install.cmd` builds a tiny launcher for that (`host/launcher/`, with the C# compiler that comes with Windows). Ending "PhoneBox Widgets" in Task Manager stops the host.
 3. On the setup page (<http://127.0.0.1:8766/>), pick a widget type, copy its snippet, and paste it into a **Custom HTML** widget in PhoneBox's settings.
 4. Configure it with ⚙ on the widget or on the setup page. Both edit the same settings.
 
@@ -46,6 +46,7 @@ A widget's `data-id` in the snippet names its settings. Two clocks with differen
 ```
 host/
   icons/         Lucide icons (SVG) bundled into every widget
+  launcher/      PhoneBoxWidgets.cs + .ico: starts the host as "PhoneBox Widgets" (built by install.cmd)
   server.py      HTTP server, plugin loader, routing, security checks
   pbw.py         helpers for plugins: settings store, PhoneBox agent, adb + tablet battery, PC fonts
   wnp.py         WebNowPlaying adapter: exact position and seeking for media in the browser (port 8767)
@@ -59,7 +60,7 @@ widgets/
   discord/
   clipboard/     plugin.py + widget.js + helper.ps1 (Windows' clipboard history API, through PowerShell)
   _template/     what tools/new-widget.py copies (folders starting with _ are not loaded)
-tools/new-widget.py
+tools/new-widget.py · tools/make-icon.ps1 (draws the launcher's icon)
 install.cmd · uninstall.cmd · dev.cmd
 ```
 

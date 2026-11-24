@@ -12,6 +12,27 @@ if (-not $pythonw) {
 }
 if (-not $pythonw -or -not (Test-Path $pythonw)) { throw 'Python 3 (pythonw.exe) was not found. Install Python from python.org and run this again.' }
 
+# The launcher (host\launcher\PhoneBoxWidgets.exe): starts the host under the name "PhoneBox Widgets" with its own
+# icon, so the startup list and Task Manager don't just say "pythonw.exe". Built here with the C# compiler that comes
+# with Windows; without it, the host starts through pythonw directly, as before.
+$launcherDir = Join-Path $PSScriptRoot 'host\launcher'
+$launcher = Join-Path $launcherDir 'PhoneBoxWidgets.exe'
+$icon = Join-Path $launcherDir 'PhoneBoxWidgets.ico'
+$csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+if (-not (Test-Path $csc)) { $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
+if (Test-Path $csc) {
+    Get-Process PhoneBoxWidgets -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue  # (it holds the .exe)
+    Start-Sleep -Milliseconds 200
+    & $csc /nologo /target:winexe /optimize+ "/win32icon:$icon" "/out:$launcher" (Join-Path $launcherDir 'PhoneBoxWidgets.cs') | Out-Null
+}
+if (Test-Path $launcher) {
+    $startExe, $startArgs = $launcher, ('"' + $pythonw + '"')
+    Write-Host 'Launcher: PhoneBox Widgets (shows under that name in the startup list and Task Manager)'
+} else {
+    $startExe, $startArgs = $pythonw, ('"' + $server + '"')
+    Write-Warning 'Could not build the launcher; the host starts as pythonw.exe instead.'
+}
+
 $startup = [Environment]::GetFolderPath('Startup')
 # the Volume Slider's own autostart from before the host existed
 $old = Join-Path $startup 'PhoneBox Volume Slider.lnk'
@@ -20,10 +41,11 @@ if (Test-Path $old) { Remove-Item $old -Force; Write-Host 'Removed the old Volum
 $lnk = Join-Path $startup 'PhoneBox Widgets.lnk'
 $shell = New-Object -ComObject WScript.Shell
 $s = $shell.CreateShortcut($lnk)
-$s.TargetPath = $pythonw
-$s.Arguments = '"' + $server + '"'
+$s.TargetPath = $startExe
+$s.Arguments = $startArgs
 $s.WorkingDirectory = Split-Path $server
 $s.Description = 'PhoneBox Widgets host'
+if (Test-Path $icon) { $s.IconLocation = "$icon,0" }
 $s.Save()
 Write-Host "Autostart: $lnk"
 
@@ -34,8 +56,7 @@ $menu.TargetPath = $pythonw
 $menu.Arguments = '"' + (Join-Path $PSScriptRoot 'host\open.pyw') + '"'
 $menu.WorkingDirectory = Join-Path $PSScriptRoot 'host'
 $menu.Description = 'Set up your PhoneBox widgets'
-$pbIcon = Join-Path $env:LOCALAPPDATA 'PhoneBox\app\PhoneBoxAgent.exe'
-if (Test-Path $pbIcon) { $menu.IconLocation = "$pbIcon,0" }
+if (Test-Path $icon) { $menu.IconLocation = "$icon,0" }
 $menu.Save()
 Write-Host "Start Menu: PhoneBox Widgets (opens the setup page)"
 
@@ -43,7 +64,7 @@ Write-Host "Start Menu: PhoneBox Widgets (opens the setup page)"
 $running = Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
 foreach ($procId in $running) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Milliseconds 300
-Start-Process -FilePath $pythonw -ArgumentList ('"' + $server + '"') -WorkingDirectory (Split-Path $server) -WindowStyle Hidden
+Start-Process -FilePath $startExe -ArgumentList $startArgs -WorkingDirectory (Split-Path $server) -WindowStyle Hidden
 
 $ok = $false
 for ($i = 0; $i -lt 24; $i++) {

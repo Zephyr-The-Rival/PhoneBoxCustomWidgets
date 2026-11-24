@@ -29,7 +29,10 @@ def main():
         pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
         exe = pythonw if os.path.isfile(pythonw) else sys.executable
         flags = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | NEW_PROCESS_GROUP | CREATE_NO_WINDOW
-        subprocess.Popen([exe, os.path.join(HERE, "server.py")], cwd=HERE, creationflags=flags, close_fds=True)
+        # through the launcher when install.cmd built it: the host then shows as "PhoneBox Widgets" in Task Manager
+        launcher = os.path.join(HERE, "launcher", "PhoneBoxWidgets.exe")
+        cmd = [launcher, exe] if os.path.isfile(launcher) else [exe, os.path.join(HERE, "server.py")]
+        subprocess.Popen(cmd, cwd=HERE, creationflags=flags, close_fds=True)
         for _ in range(40):  # up to 10 s
             time.sleep(0.25)
             if up():
