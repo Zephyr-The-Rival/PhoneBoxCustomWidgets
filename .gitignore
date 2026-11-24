@@ -4,6 +4,9 @@ __pycache__/
 .venv/
 venv/
 
+# Built by install.cmd from host/launcher/PhoneBoxWidgets.cs
+host/launcher/*.exe
+
 # Logs
 *.log
 
